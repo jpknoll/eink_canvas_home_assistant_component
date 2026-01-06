@@ -58,8 +58,22 @@ The manual way (if you like living on the edge): -->
 #### Image & Gallery Management
 
   * `media_player.play_media`: The main service for sending a new image to the display.
+  * `eink_display.sync_photos`: **NEW!** Sync photos from a Home Assistant media source to a device gallery.
   * **Media Browser:** Browse your device's galleries or upload new images directly from the Home Assistant media browser. It's slick.
 
+
+**Sync your vacation photos to the canvas:**
+
+```yaml
+service: eink_display.sync_photos
+target:
+  entity_id: media_player.living_room_portal
+data:
+  media_source_id: "media_source://local/photos/vacation_2024"
+  target_gallery: "vacation"
+  max_photos: 25
+  overwrite_existing: false
+```
 
 **Display a new family photo every morning:**
 

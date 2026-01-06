@@ -170,6 +170,37 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
         else:
             add_log("Failed to refresh device info", "error")
 
+    async def handle_sync_photos(call: ServiceCall) -> None:
+        """Handle sync photos from media source service."""
+        media_source_id = call.data.get("media_source_id")
+        target_gallery = call.data.get("target_gallery", "default")
+        max_photos = call.data.get("max_photos", 50)
+        overwrite_existing = call.data.get("overwrite_existing", False)
+
+        if not media_source_id:
+            add_log("No media source ID provided for photo sync", "error")
+            return
+
+        add_log(f"Starting photo sync from {media_source_id} to gallery {target_gallery}")
+        
+        result = await api_client.sync_photos_from_media_source(
+            media_source_id=media_source_id,
+            target_gallery=target_gallery,
+            max_photos=max_photos,
+            overwrite_existing=overwrite_existing
+        )
+
+        if result["success"]:
+            add_log(f"Photo sync completed successfully - Synced: {result['synced_count']}, "
+                   f"Skipped: {result['skipped_count']}, Failed: {result['failed_count']}")
+        else:
+            add_log(f"Photo sync failed - Errors: {len(result['errors'])}, "
+                   f"Synced: {result['synced_count']}, Failed: {result['failed_count']}", "error")
+            
+            # Log individual errors
+            for error in result["errors"][:5]:  # Limit to first 5 errors
+                add_log(f"Sync error: {error}", "error")
+
     # Register all services
     services = [
         ("show_next", handle_show_next, {}),
@@ -183,6 +214,12 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
             vol.Optional("sleep_duration"): int,
             vol.Optional("max_idle"): int,
             vol.Optional("idx_wake_sens"): int,
+        }),
+        ("sync_photos", handle_sync_photos, {
+            vol.Required("media_source_id"): str,
+            vol.Optional("target_gallery", default="default"): str,
+            vol.Optional("max_photos", default=50): int,
+            vol.Optional("overwrite_existing", default=False): bool,
         }),
     ]
 
@@ -203,7 +240,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
         # Remove services
         services_to_remove = [
             "show_next", "sleep", "reboot", "clear_screen",
-            "whistle", "refresh_device_info", "update_settings"
+            "whistle", "refresh_device_info", "update_settings", "sync_photos"
         ]
         for service in services_to_remove:
             if hass.services.has_service(DOMAIN, service):
