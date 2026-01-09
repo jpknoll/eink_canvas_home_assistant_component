@@ -564,7 +564,7 @@ class EinkCanvasApiClient:
             media_item = await media_source.async_browse_media(
                 self._hass,
                 media_source_id,
-                content_type_filter="image/*"
+                content_filter="image/*"
             )
 
             # Extract photos from media item (recursive)
