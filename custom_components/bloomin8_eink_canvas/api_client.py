@@ -615,7 +615,7 @@ class EinkCanvasApiClient:
         # For other sources: images might have can_play=true
         is_photo = (
             (hasattr(media_item, 'media_class') and 
-             media_item.media_class in [MediaClass.IMAGE, MediaClass.PHOTO]) or
+             media_item.media_class == MediaClass.IMAGE) or
             (hasattr(media_item, 'media_content_type') and
              media_item.media_content_type and
              media_item.media_content_type.startswith("image/")) or
