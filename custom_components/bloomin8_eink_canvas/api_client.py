@@ -560,12 +560,19 @@ class EinkCanvasApiClient:
         photos = []
 
         try:
-            # Resolve media source and browse recursively
+            _LOGGER.debug("Browsing media source: %s", media_source_id)
+            
+            # Try browsing without content filter first (better for Immich)
             media_item = await media_source.async_browse_media(
                 self._hass,
-                media_source_id,
-                content_filter="image/*"
+                media_source_id
             )
+            
+            _LOGGER.debug("Media item: %s", media_item)
+            if hasattr(media_item, 'children') and media_item.children:
+                _LOGGER.debug("Found %d children in media source", len(media_item.children))
+            else:
+                _LOGGER.debug("No children found in media source")
 
             # Extract photos from media item (recursive)
             photos = await self._extract_photos_from_media_item(media_item, max_photos)
@@ -603,19 +610,35 @@ class EinkCanvasApiClient:
         if len(photos) >= max_photos:
             return photos
 
-        # If this is a playable media item (photo), add it
-        if (media_item.media_class in [MediaClass.IMAGE, MediaClass.PHOTO] and
-            media_item.can_play and
-            hasattr(media_item, 'media_content_type') and
-            media_item.media_content_type and
-            media_item.media_content_type.startswith("image/")):
-            
+        # Check if this is a media item (photo)
+        # For Immich: images have media_class=image but can_play=false
+        # For other sources: images might have can_play=true
+        is_photo = (
+            (hasattr(media_item, 'media_class') and 
+             media_item.media_class in [MediaClass.IMAGE, MediaClass.PHOTO]) or
+            (hasattr(media_item, 'media_content_type') and
+             media_item.media_content_type and
+             media_item.media_content_type.startswith("image/")) or
+            (hasattr(media_item, 'title') and 
+             any(media_item.title.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']))
+        )
+
+        # Ensure it's not a directory/container and has a media_content_id
+        is_not_directory = (
+            hasattr(media_item, 'children_media_class') and
+            media_item.children_media_class is None
+        ) or (
+            hasattr(media_item, 'can_expand') and
+            not media_item.can_expand
+        )
+
+        if is_photo and is_not_directory and hasattr(media_item, 'media_content_id'):
             photo_info = {
-                "name": media_item.title,
+                "name": media_item.title if hasattr(media_item, 'title') else "unknown",
                 "url": media_item.media_content_id
             }
             photos.append(photo_info)
-            _LOGGER.debug("Found photo: %s", media_item.title)
+            _LOGGER.debug("Found photo: %s -> %s", photo_info["name"], photo_info["url"])
 
         # If this has children, recurse
         if (hasattr(media_item, 'children') and
