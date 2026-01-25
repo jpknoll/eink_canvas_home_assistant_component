@@ -231,12 +231,12 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
             
             # Pick a random photo
             random_photo = random.choice(photos)
-            add_log(f"Selected random photo: {random_photo.get('title', 'Unknown')}")
+            add_log(f"Selected random photo: {random_photo.get('name', 'Unknown')}")
             
             # Get the media_content_id for the selected photo
-            media_content_id = random_photo.get('media_content_id')
+            media_content_id = random_photo.get('url')
             if not media_content_id:
-                add_log("Selected photo has no media_content_id", "error")
+                add_log("Selected photo has no url", "error")
                 return
             
             # Find target media players
@@ -265,7 +265,7 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
                     entity = component.get_entity(media_player_entity_id)
                     if entity and hasattr(entity, 'async_play_media'):
                         await entity.async_play_media(
-                            random_photo.get('media_content_type', 'image/jpeg'),
+                            'image/jpeg',  # Default to image/jpeg since we know these are photos
                             media_content_id
                         )
                         add_log(f"Successfully pushed random photo to {media_player_entity_id}")
