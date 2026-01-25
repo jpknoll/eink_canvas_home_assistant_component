@@ -205,6 +205,7 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
     async def handle_push_random_item(call: ServiceCall) -> None:
         """Handle push random item from media source service."""
         media_source_id = call.data.get("media_source_id")
+        entity_id = call.data.get("entity_id")  # Optional specific media player
 
         if not media_source_id:
             add_log("No media source ID provided for push random item", "error")
@@ -224,41 +225,44 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
             random_photo = random.choice(photos)
             add_log(f"Selected random photo: {random_photo.get('title', 'Unknown')}")
             
-            # Push the photo to the e-ink media player
-            # We need to use the media player to display the photo
             # Get the media_content_id for the selected photo
             media_content_id = random_photo.get('media_content_id')
             if not media_content_id:
                 add_log("Selected photo has no media_content_id", "error")
                 return
             
-            # Play the selected photo on all e-ink media players
+            # Find target media players
             from homeassistant.components.media_player import DOMAIN as MEDIA_DOMAIN
             
-            # Find all e-ink canvas media players
-            entity_ids = [
-                entity_id for entity_id in hass.states.async_entity_ids(MEDIA_DOMAIN)
-                if hass.states.get(entity_id).attributes.get("device_info", {}).get("manufacturer") == "BLOOMIN8"
-            ]
+            if entity_id:
+                # Use the specified media player
+                target_entities = [entity_id]
+            else:
+                # Find all e-ink canvas media players
+                target_entities = [
+                    state.entity_id for state in hass.states.async_all()
+                    if (state.entity_id.startswith(MEDIA_DOMAIN + ".") and
+                        state.attributes.get("manufacturer") == "BLOOMIN8")
+                ]
             
-            if not entity_ids:
+            if not target_entities:
                 add_log("No BLOOMIN8 E-Ink Canvas media players found", "error")
                 return
             
-            # Play the photo on all found media players
-            for entity_id in entity_ids:
-                await hass.services.async_call(
-                    MEDIA_DOMAIN,
-                    "play_media",
-                    {
-                        "entity_id": entity_id,
-                        "media_content_id": media_content_id,
-                        "media_content_type": random_photo.get('media_content_type', 'image/jpeg')
-                    },
-                    blocking=True
-                )
+            # Get the media player entities to call their async_play_media method directly
+            for media_player_entity_id in target_entities:
+                # Get the media player component and entity
+                component = hass.data.get(MEDIA_DOMAIN)
+                if component and hasattr(component, 'get_entity'):
+                    entity = component.get_entity(media_player_entity_id)
+                    if entity and hasattr(entity, 'async_play_media'):
+                        await entity.async_play_media(
+                            random_photo.get('media_content_type', 'image/jpeg'),
+                            media_content_id
+                        )
+                        add_log(f"Successfully pushed random photo to {media_player_entity_id}")
             
-            add_log(f"Successfully pushed random photo to {len(entity_ids)} media player(s)")
+            add_log(f"Successfully pushed random photo to {len(target_entities)} media player(s)")
             
         except Exception as err:
             add_log(f"Error pushing random item: {err}", "error")
@@ -285,6 +289,7 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
         }),
         ("push_random_item", handle_push_random_item, {
             vol.Required("media_source_id"): str,
+            vol.Optional("entity_id"): str,
         }),
     ]
 
