@@ -97,6 +97,14 @@ async def _register_services(hass: HomeAssistant, entry: EinkCanvasConfigEntry) 
         # Keep only the latest 50 logs
         if len(runtime_data.logs) > 50:
             runtime_data.logs.pop(0)
+        
+        # Also log to Home Assistant core log
+        if level == "error":
+            _LOGGER.error(message)
+        elif level == "warning":
+            _LOGGER.warning(message)
+        else:
+            _LOGGER.info(message)
 
     async def handle_show_next(call: ServiceCall) -> None:
         """Handle show next image service."""
